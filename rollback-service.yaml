@@ -1,0 +1,206 @@
+name: Rollback Service
+tag: workflow-0e405a5d-6a1c-41a6-84a8-d3287941c000
+description: null
+isDraft: true
+filter:
+  entityFilter:
+    typeFilter:
+      types:
+      - service
+    entityGroupFilter: null
+  ownershipScope: ALL
+  type: ENTITY
+runResponseTemplate: null
+failedRunResponseTemplate: null
+restrictActionCompletionToRunnerUser: false
+actions:
+- name: Get incident info
+  slug: get-incident-info
+  schema:
+    inputs:
+    - name: Incident Name
+      description: null
+      key: incident-name
+      required: false
+      defaultValue: null
+      placeholder: null
+      validationRegex: null
+      type: INPUT_FIELD
+    - name: Incident Severity
+      description: null
+      key: incident-severity
+      required: false
+      options:
+      - SEV0
+      - SEV1
+      - SEV2
+      optionsLabels: null
+      defaultValue: null
+      placeholder: ""
+      allowAdditionalOptions: false
+      type: SELECT_FIELD
+    - name: Create Incident Slack Channel?
+      description: null
+      key: create-incident-slack-channel
+      required: true
+      defaultValue: false
+      type: TOGGLE_FIELD
+    inputOverrides: []
+    type: USER_INPUT
+  outgoingActions:
+  - list-deployments-for-entity
+  isRootAction: true
+- name: List deployments for entity
+  slug: list-deployments-for-entity
+  schema:
+    inputs:
+      page: 0
+      entityId: "{{context.entity.tag}}"
+      pageSize: 2
+    integrationAlias: null
+    actionIdentifier: cortex.getDeploysForEntity
+    type: ADVANCED_HTTP_REQUEST
+  outgoingActions:
+  - javascript
+  isRootAction: false
+- name: Format deployments
+  slug: javascript
+  schema:
+    script: "// Assume \"deployments\" is the JSON from the previous step\nconst deployments\
+      \ = actions['list-deployments-for-entity'].outputs.response.deployments\n\n\
+      // Create a flat array of strings formatted for a dropdown\nconst shasFormatted\
+      \ = deployments.map(dep => \n  `${dep.title} (${dep.sha.slice(0,7)}) - ${dep.timestamp}`\n\
+      );\n\n// Also return the raw SHAs if needed for later steps\nconst shas = deployments.map(dep\
+      \ => dep.sha);\n\nreturn {\n  totalDeployments: deployments.length,\n  deployments:\
+      \ deployments,       // full objects if you need them\n  shas: shas,       \
+      \              // raw SHA values\n  shasFormatted: shasFormatted    // flat\
+      \ string array for dropdowns\n};"
+    type: JAVASCRIPT
+  outgoingActions:
+  - user-input
+  isRootAction: false
+- name: User input
+  slug: user-input
+  schema:
+    inputs:
+    - name: Commit ID to rollback to
+      description: null
+      key: commit-id-to-rollback-to
+      required: false
+      options: []
+      optionsLabels: null
+      defaultValue: null
+      placeholder: null
+      allowAdditionalOptions: false
+      type: SELECT_FIELD
+    inputOverrides:
+    - inputKey: commit-id-to-rollback-to
+      outputVariable: actions.javascript.outputs.result.shasFormatted
+      type: OPTION
+    type: USER_INPUT
+  outgoingActions:
+  - extract-sha
+  isRootAction: false
+- name: Extract SHA
+  slug: extract-sha
+  schema:
+    script: |-
+      // The selected option from the User Input block
+      const selectedOption = actions['user-input'].outputs['commit-id-to-rollback-to']
+
+      // Extract the text between parentheses
+      const match = selectedOption.match(/\((.*?)\)/);
+      const sha = match ? match[1] : null;
+
+      return {
+        selectedOption: selectedOption, // full string
+        sha: sha                        // extracted commit SHA
+      };
+    type: JAVASCRIPT
+  outgoingActions:
+  - trigger-workflow
+  isRootAction: false
+- name: Trigger workflow
+  slug: trigger-workflow
+  schema:
+    inputs:
+      ref: main
+      repo: cortex-workshops/deployment
+      inputs: |-
+        {
+        "service": "{{context.entity.tag}}",
+        "rollback_to": "{{actions.extract-sha.outputs.result.sha}}"
+        }
+      workflow_id: rollback.yaml
+    integrationAlias: cortex
+    actionIdentifier: github.createWorkflowDispatchEvent
+    type: ADVANCED_HTTP_REQUEST
+  outgoingActions:
+  - branch
+  isRootAction: false
+- name: Branch
+  slug: branch
+  schema:
+    branches:
+    - name: Create incident Slack channel
+      slug: create-incident-slack-channel-path
+      outgoingAction: create-incident-slack-channel
+      expression: "actions[\"get-incident-info\"].outputs[\"create-incident-slack-channel\"\
+        ] == true"
+      type: CONDITIONAL
+    - name: Do not create Slack channel
+      slug: do-not-create-slack-channel
+      outgoingAction: send-fyi-message
+      expression: "actions[\"get-incident-info\"].outputs[\"create-incident-slack-channel\"\
+        ] == false"
+      type: CONDITIONAL
+    fallbackBranch: null
+    joiningAction: null
+    type: CONDITIONAL_BRANCH
+  outgoingActions:
+  - create-incident-slack-channel
+  - send-fyi-message
+  isRootAction: false
+- name: Create Incident Slack Channel
+  slug: create-incident-slack-channel
+  schema:
+    headers:
+      Content-Type: application/json
+      Authorization: "Bearer {{context.secrets.apiKey}}"
+    httpMethod: POST
+    payload: |-
+      {
+        "name": "incident-{{actions.get-incident-info.outputs.incident-name}}"
+      }
+    url: https://slack.com/api/conversations.create
+    type: HTTP_REQUEST
+  outgoingActions:
+  - send-slack-message
+  isRootAction: false
+- name: Send FYI message
+  slug: send-fyi-message
+  schema:
+    channel: public-channel
+    message: "Service {{context.entity.tag}} with incident was not rolled back."
+    type: SLACK
+  outgoingActions: []
+  isRootAction: false
+- name: Send Slack Message
+  slug: send-slack-message
+  schema:
+    headers:
+      Content-Type: application/json
+      Authorization: "Bearer {{context.secrets.apiKey}}"
+    httpMethod: POST
+    payload: |-
+      {
+        "channel": "incident-{{actions.get-incident-info.outputs.incident-name}}",
+        "text": "Rollbacked service {{context.entity.tag}} to commit ID {{actions.extract-sha.outputs.result.sha}}."
+      }
+    url: https://slack.com/api/chat.postMessage
+    type: HTTP_REQUEST
+  outgoingActions: []
+  isRootAction: false
+runRestrictionPolicies: []
+iconTag: null
+variables: []
