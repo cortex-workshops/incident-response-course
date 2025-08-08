@@ -1,0 +1,115 @@
+tag: incident-response-performance
+name: Incident Response Performance
+description: "Tracks incident response performance using MTTR, time to acknowledge,\
+  \ incident volume, and rollback frequency."
+draft: true
+notifications:
+  enabled: false
+  scoreDropNotificationsEnabled: false
+exemptions:
+  enabled: true
+  autoApprove: false
+evaluation:
+  window: 20
+ladder:
+  name: Default Ladder
+  levels:
+  - name: Minimum Performance Indicators Not Met
+    rank: 1
+    color: "#ff0000"
+  - name: Bronze
+    rank: 2
+    color: "#c38b5f"
+  - name: Silver
+    rank: 3
+    color: "#8c9298"
+  - name: Gold
+    rank: 4
+    color: "#cda400"
+rules:
+- title: Incident count less than 5/month
+  description: Service has less than 5 incidents over the last month
+  expression: oncall.incidents(lookback = duration("P1M")).length < 5
+  identifier: 1de842cc-e02c-3722-ad64-d4c4c121a822
+  weight: 1
+  level: Silver
+- title: Mean time to acknowledge is less than 15 minutes
+  description: Mean time to acknowledge is less over last month is than 15 minutes
+  expression: oncall.analysis(lookback = duration("P30D")).meanSecondsToFirstAck <
+    900
+  identifier: 22becbf4-f729-3db9-af65-c996aa1ee332
+  weight: 1
+  level: Bronze
+- title: MTTR less than 90 minutes
+  description: Mean time to resolve over last month is less than 90 minutes
+  expression: oncall.analysis(lookback = duration("P30D")).meanSecondsToResolve <
+    5400
+  identifier: 239bb9ef-d98c-344b-9f16-7e6482909278
+  weight: 1
+  level: Bronze
+- title: Incident count less than 10/month
+  description: Service has less than 10 incidents over the last month
+  expression: oncall.incidents(lookback = duration("P1M")).length < 10
+  identifier: 28523743-fa66-35dc-95b3-81a924f40eaa
+  weight: 1
+  level: Bronze
+- title: Rollbacks <20% of deployments
+  description: Rollbacks make up less than 20% of all deployments
+  expression: "deploys(lookback=duration(\"P1M\"),types=[\"ROLLBACK\"]).length / deploys(lookback=duration(\"\
+    P1M\"),types=[\"DEPLOY\", \"ROLLBACK\", \"RESTART\"]).length < 0.20"
+  identifier: 6cd44f29-a6f6-311d-9547-786eb013c715
+  weight: 1
+  level: Bronze
+- title: Mean time to acknowledge is less than 10 minutes
+  description: Mean time to acknowledge is less over last month is than 10 minutes
+  expression: oncall.analysis(lookback = duration("P30D")).meanSecondsToFirstAck <
+    600
+  identifier: 6e46aa4e-ec71-3ef5-a107-f8f122059165
+  weight: 1
+  level: Silver
+- title: MTTR less than 60 minutes
+  description: Mean time to resolve over last month is less than 60 minutes
+  expression: oncall.analysis(lookback = duration("P30D")).meanSecondsToResolve <
+    3600
+  identifier: 6ed02b05-f2ae-363a-8eec-606f3808c88c
+  weight: 1
+  level: Silver
+- title: Rollbacks <5% of deployments
+  description: Rollbacks make up less than 5% of all deployments
+  expression: "deploys(lookback=duration(\"P1M\"),types=[\"ROLLBACK\"]).length / deploys(lookback=duration(\"\
+    P1M\"),types=[\"DEPLOY\", \"ROLLBACK\", \"RESTART\"]).length < 0.05 "
+  identifier: 7011cfc7-1767-37ea-9a5f-b67bc3747ef6
+  weight: 1
+  level: Gold
+- title: Incident count less than 2/month
+  description: Service has less than 2 incidents over the last month
+  expression: oncall.incidents(lookback = duration("P1M")).length < 2
+  identifier: 7b585c9c-687f-3878-a163-9b8bf4d7ca62
+  weight: 1
+  level: Gold
+- title: Mean time to acknowledge is less than 5 minutes
+  description: Mean time to acknowledge is less over last month is than 5 minutes
+  expression: oncall.analysis(lookback = duration("P30D")).meanSecondsToFirstAck <
+    300
+  identifier: 7dc11b02-bdcf-3acf-97f5-1fbd8099851f
+  weight: 1
+  level: Gold
+- title: Rollbacks <10% of deployments
+  description: Rollbacks make up less than 10% of all deployments
+  expression: "deploys(lookback=duration(\"P1M\"),types=[\"ROLLBACK\"]).length / deploys(lookback=duration(\"\
+    P1M\"),types=[\"DEPLOY\", \"ROLLBACK\", \"RESTART\"]).length < 0.10"
+  identifier: 9f40f956-a6a2-3f4f-8163-8b7b8aff60d5
+  weight: 1
+  level: Silver
+- title: MTTR less than 30 minutes
+  description: Mean time to resolve over last month is less than 30 minutes
+  expression: oncall.analysis(lookback = duration("P30D")).meanSecondsToResolve <
+    1800
+  identifier: c4fa8675-b42c-33db-8e70-b00551872aef
+  weight: 1
+  level: Gold
+filter:
+  kind: GENERIC
+  types:
+    include:
+    - service
