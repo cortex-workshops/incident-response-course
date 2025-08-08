@@ -1,0 +1,83 @@
+tag: incident-preparedness
+name: Incident Preparedness
+description: "Ensures services are fully prepared for incidents by validating ownership,\
+  \ documentation, alerts, dependencies, and PagerDuty escalation readiness."
+draft: true
+notifications:
+  enabled: false
+  scoreDropNotificationsEnabled: false
+exemptions:
+  enabled: true
+  autoApprove: false
+ladder:
+  name: Default Ladder
+  levels:
+  - name: Not Prepared
+    rank: 1
+    color: "#fa0000"
+  - name: Bronze
+    rank: 2
+    color: "#c38b5f"
+  - name: Silver
+    rank: 3
+    color: "#8c9298"
+  - name: Gold
+    rank: 4
+    color: "#cda400"
+rules:
+- title: At least one dependency documented
+  expression: dependencies.in().length > 0 OR dependencies.out().length > 0
+  identifier: 066d840e-109a-388a-82a8-8872d78e5b59
+  weight: 1
+  level: Silver
+- title: PagerDuty is configured
+  expression: oncall != null
+  identifier: 2a2e6d7e-9ea1-3df6-a2a1-8db501126d53
+  weight: 1
+  level: Bronze
+- title: Service is owned
+  expression: ownership != null
+  identifier: 2d3e1a5a-2012-3b28-b561-dd31c73117aa
+  weight: 1
+  level: Bronze
+- title: Alerting channel is configured
+  expression: slack != null
+  identifier: 7010d20c-c5a7-3dd4-805e-b3f433ab8b45
+  weight: 1
+  level: Silver
+- title: At least one monitor is documented
+  expression: datadog.monitors().length > 0
+  identifier: 94740e6b-36d0-3412-881a-ea106873c953
+  weight: 1
+  level: Gold
+- title: At least 1 tier in escalation policy
+  expression: oncall.numOfEscalations() > 0
+  identifier: 95755ddb-8dde-3086-bc84-5bfbe5fdd193
+  weight: 1
+  level: Silver
+- title: Tier is defined
+  expression: groups().any((group) => group.name.matches(".*tier*"))
+  identifier: ab53973a-add7-3c91-84a9-d61c411a086e
+  weight: 1
+  level: Bronze
+- title: Service has runbook
+  expression: links("runbook").length > 0
+  identifier: ad605cee-b5f6-351c-995c-897b64abb872
+  weight: 1
+  level: Silver
+- title: Both incoming and outgoing dependencies documented
+  expression: dependencies.in().length > 0 AND dependencies.out().length > 0
+  identifier: cb124989-d96f-3c49-85fd-6658b7a60823
+  weight: 1
+  level: Gold
+- title: All users have phone numbers linked in escalation policy
+  expression: oncall.users().filter(user => !user.contactMethods.anyMatch("PHONE")).length
+    == 0
+  identifier: e662cab3-d4c4-3b6b-9fcd-333a230050da
+  weight: 1
+  level: Gold
+filter:
+  kind: GENERIC
+  types:
+    include:
+    - service
